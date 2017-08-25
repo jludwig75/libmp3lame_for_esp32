@@ -10,8 +10,13 @@
 #include "esp_heap_alloc_caps.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <sys/unistd.h>
+#include <sys/stat.h>
 
 #include <sys/time.h>
+
+#include "mount_sd.h"
 
 extern const uint8_t Sample16kHz_raw_start[] asm("_binary_Sample16kHz_raw_start");
 extern const uint8_t Sample16kHz_raw_end[]   asm("_binary_Sample16kHz_raw_end");
@@ -28,8 +33,22 @@ void lameTest()
  unsigned char *mp3buf;
  const int mp3buf_size=2000;  //mp3buf_size in bytes = 1.25*num_samples + 7200
  struct timeval tvalBefore, tvalFirstFrame, tvalAfter;
+ int bytes_written;
 
-  free8start=xPortGetFreeHeapSizeCaps(MALLOC_CAP_8BIT);
+ esp_err_t ret = mount_sd_card("/sdcard");
+ if (ret != ESP_OK) {
+	 printf("Error %d mounting SD card\n", ret);
+	 return;
+ }
+
+ FILE *f = fopen("/sdcard/Sample16kHz.mp3", "w");
+ if (f == NULL) {
+	 printf("Error creating MP3 file\n");
+     unmount_sd_card();
+     return;
+ }
+
+ free8start=xPortGetFreeHeapSizeCaps(MALLOC_CAP_8BIT);
  free32start=xPortGetFreeHeapSizeCaps(MALLOC_CAP_32BIT);
  printf("pre lame_init() free mem8bit: %d mem32bit: %d\n",free8start,free32start);
 
@@ -43,10 +62,13 @@ void lameTest()
  printf("post lame_init() free mem8bit: %d mem32bit: %d\n",free8start,free32start);
 
  if(!lame) {
-	 	   printf("Unable to initialize lame object.\n");
-	      } else {
-	       printf("Able to initialize lame object.\n");
-	      }
+   printf("Unable to initialize lame object.\n");
+   fclose(f);
+   unmount_sd_card();
+   return;
+  } else {
+   printf("Able to initialize lame object.\n");
+  }
 
  /* set other parameters.*/
  lame_set_VBR(lame, vbr_default);
@@ -99,18 +121,28 @@ void lameTest()
     	 total+=num_samples_encoded;
      } else if(num_samples_encoded == -1) {
        printf("mp3buf was too small\n");
+       fclose(f);
+       unmount_sd_card();
        return ;
      } else if(num_samples_encoded == -2) {
        printf("There was a malloc problem.\n");
+       fclose(f);
+       unmount_sd_card();
        return ;
      } else if(num_samples_encoded == -3) {
        printf("lame_init_params() not called.\n");
+       fclose(f);
+       unmount_sd_card();
        return ;
      } else if(num_samples_encoded == -4) {
        printf("Psycho acoustic problems.\n");
+       fclose(f);
+       unmount_sd_card();
        return ;
      } else {
        printf("The conversion was not successful.\n");
+       fclose(f);
+       unmount_sd_card();
        return ;
      }
 
@@ -120,6 +152,14 @@ void lameTest()
     	 printf("%02X", mp3buf[i]);
      }
 */
+     bytes_written = (int)fwrite(mp3buf, 1, num_samples_encoded, f);
+     if (bytes_written != num_samples_encoded) {
+    	 printf("Error writing to MP3 file\n");
+    	 fclose(f);
+         unmount_sd_card();
+         return ;
+     }
+
     pcm_samples += (nsamples*2);  // nsamples*2 ????
     frames++;
 
@@ -149,7 +189,7 @@ void lameTest()
 
  printf ("Total frames: %d TotalBytes: %d\n", frames, total);
 
-/*
+
  num_samples_encoded = lame_encode_flush(lame, mp3buf, mp3buf_size);
  if(num_samples_encoded < 0) {
    if(num_samples_encoded == -1) {
@@ -157,20 +197,30 @@ void lameTest()
    } else {
      printf("MP3 internal error.\n");
    }
+   unmount_sd_card();
    return ;
  } else {
      for(int i = 0; i < num_samples_encoded; i++) {
        printf("%02X ", mp3buf[i]);
      }
      total += num_samples_encoded;
-  // printf("Flushing stage yielded %d frames.\n", num_samples_encoded);
+     printf("Flushing stage yielded %d frames.\n", num_samples_encoded);
+     bytes_written = (int)fwrite(mp3buf, 1, num_samples_encoded, f);
+     if (bytes_written != num_samples_encoded) {
+    	 printf("Error writing to MP3 file\n");
+    	 fclose(f);
+         unmount_sd_card();
+         return;
+     }
  }
-*/
+
+ fclose(f);
 
 // =========================================================
 
  lame_close(lame);
  printf("\nClose\n");
+ unmount_sd_card();
 
  while (1) vTaskDelay(500 / portTICK_RATE_MS);
 
