@@ -27,7 +27,7 @@ esp_err_t mount_sd_card(const char *mount_path)
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
 
     // To use 1-line SD mode, uncomment the following line:
-    // host.flags = SDMMC_HOST_FLAG_1BIT;
+    host.flags = SDMMC_HOST_FLAG_1BIT;
 
     // This initializes the slot without card detect (CD) and write protect (WP) signals.
     // Modify slot_config.gpio_cd and slot_config.gpio_wp if your board has these signals.

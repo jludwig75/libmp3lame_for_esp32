@@ -41,7 +41,7 @@ void lameTest()
 	 return;
  }
 
- FILE *f = fopen("/sdcard/Sample16kHz.mp3", "w");
+ FILE *f = fopen("/sdcard/SAMPLE.MP3", "w");
  if (f == NULL) {
 	 printf("Error creating MP3 file\n");
      unmount_sd_card();
@@ -109,7 +109,8 @@ void lameTest()
 	   //  printf("\n=============== lame_encode_buffer_interleaved================ \n");
  /* encode samples. */
 
-	  num_samples_encoded = lame_encode_buffer_interleaved(lame, pcm_samples, nsamples, mp3buf, mp3buf_size);
+      // Pass in the number of samples in one channel. That is the total number of samples divided by 2. 
+	  num_samples_encoded = lame_encode_buffer_interleaved(lame, pcm_samples, nsamples/2, mp3buf, mp3buf_size);
 
   //   printf("number of samples encoded = %d pcm_samples %p \n", num_samples_encoded, pcm_samples);
 
@@ -160,7 +161,8 @@ void lameTest()
          return ;
      }
 
-    pcm_samples += (nsamples*2);  // nsamples*2 ????
+    printf(".");
+    pcm_samples += nsamples;
     frames++;
 
 #if 0
@@ -173,6 +175,8 @@ void lameTest()
     }
 #endif
  }
+ 
+ printf("\n");
 
  gettimeofday (&tvalAfter, NULL);
 
