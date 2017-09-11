@@ -110,13 +110,13 @@ void lameTest()
 	   //  printf("\n=============== lame_encode_buffer_interleaved================ \n");
  /* encode samples. */
 
-      // Pass in the number of samples in one channel. That is the total number of samples divided by num_channels.
 	 if (num_channels == 1) {
 		 // Mono
 		 num_samples_encoded = lame_encode_buffer(lame, pcm_samples, pcm_samples, nsamples, mp3buf, mp3buf_size);
 	 }
 	 else {
 		 // Stereo
+	     // Pass in the number of samples in one channel. That is the total number of samples divided by num_channels.
 		 num_samples_encoded = lame_encode_buffer_interleaved(lame, pcm_samples, nsamples / num_channels, mp3buf, mp3buf_size);
 	 }
 
