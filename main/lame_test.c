@@ -18,13 +18,13 @@
 
 #include "mount_sd.h"
 
-extern const uint8_t Sample16kHz_raw_start[] asm("_binary_Sample16kHz_mono_raw_start");
-extern const uint8_t Sample16kHz_raw_end[]   asm("_binary_Sample16kHz_mono_raw_end");
+extern const uint8_t Sample16kHz_raw_start[] asm("_binary_Sample16kHz_mono_8kHz_raw_start");
+extern const uint8_t Sample16kHz_raw_end[]   asm("_binary_Sample16kHz_mono_8kHz_raw_end");
 
 void lameTest()
 {
  lame_t lame;
- unsigned int sampleRate = 16000;
+ unsigned int sampleRate = 8000;
  short int *pcm_samples, *pcm_samples_end;
  int framesize = 0;
  int num_samples_encoded = 0, total=0, frames=0;
