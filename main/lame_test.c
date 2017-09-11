@@ -18,8 +18,8 @@
 
 #include "mount_sd.h"
 
-extern const uint8_t Sample16kHz_raw_start[] asm("_binary_Sample16kHz_raw_start");
-extern const uint8_t Sample16kHz_raw_end[]   asm("_binary_Sample16kHz_raw_end");
+extern const uint8_t Sample16kHz_raw_start[] asm("_binary_Sample16kHz_mono_raw_start");
+extern const uint8_t Sample16kHz_raw_end[]   asm("_binary_Sample16kHz_mono_raw_end");
 
 void lameTest()
 {
@@ -34,6 +34,7 @@ void lameTest()
  const int mp3buf_size=2000;  //mp3buf_size in bytes = 1.25*num_samples + 7200
  struct timeval tvalBefore, tvalFirstFrame, tvalAfter;
  int bytes_written;
+ int num_channels = 1;
 
  esp_err_t ret = mount_sd_card("/sdcard");
  if (ret != ESP_OK) {
@@ -72,10 +73,10 @@ void lameTest()
 
  /* set other parameters.*/
  lame_set_VBR(lame, vbr_default);
- lame_set_num_channels(lame, 2);
+ lame_set_num_channels(lame, num_channels);
  lame_set_in_samplerate(lame, sampleRate);
  lame_set_quality(lame, 7);  /* set for high speed and good quality. */
- lame_set_mode(lame, JOINT_STEREO);  /* audio is joint stereo */
+ lame_set_mode(lame, num_channels == 1 ? MONO : JOINT_STEREO);  /* audio is joint stereo */
 
 // lame_set_out_samplerate(lame, sampleRate);
  printf("Able to set a number of parameters too.\n");
@@ -109,8 +110,15 @@ void lameTest()
 	   //  printf("\n=============== lame_encode_buffer_interleaved================ \n");
  /* encode samples. */
 
-      // Pass in the number of samples in one channel. That is the total number of samples divided by 2. 
-	  num_samples_encoded = lame_encode_buffer_interleaved(lame, pcm_samples, nsamples/2, mp3buf, mp3buf_size);
+      // Pass in the number of samples in one channel. That is the total number of samples divided by num_channels.
+	 if (num_channels == 1) {
+		 // Mono
+		 num_samples_encoded = lame_encode_buffer(lame, pcm_samples, pcm_samples, nsamples, mp3buf, mp3buf_size);
+	 }
+	 else {
+		 // Stereo
+		 num_samples_encoded = lame_encode_buffer_interleaved(lame, pcm_samples, nsamples / num_channels, mp3buf, mp3buf_size);
+	 }
 
   //   printf("number of samples encoded = %d pcm_samples %p \n", num_samples_encoded, pcm_samples);
 
