@@ -213,9 +213,9 @@ TEST(QueueThreadTests, low_producer_heavy_consumer) {
 }
 
 int run_tests(int argc, char * argv[]) {
-    //printf("TestQueue thread tests...\n");
-    //make_queue = make_test_queue;
-    //CommandLineTestRunner::RunAllTests(argc, argv);
+    printf("TestQueue thread tests...\n");
+    make_queue = make_test_queue;
+    CommandLineTestRunner::RunAllTests(argc, argv);
 
     printf("CircularQueue thread tests...\n");
     make_queue = make_circular_queue;
@@ -246,9 +246,9 @@ int main(int argc, char * argv[]) {
 
     srand((unsigned)time(NULL));
 
-    //printf("Running tests with delay...\n");
-    //sleep_time = std::chrono::microseconds(100);
-    //run_tests(argc, argv);
+    printf("Running tests with delay...\n");
+    sleep_time = std::chrono::microseconds(100);
+    run_tests(argc, argv);
 
     printf("Running tests without delay...\n");
     sleep_time = std::chrono::microseconds(0);
