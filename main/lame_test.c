@@ -25,7 +25,7 @@ extern const uint8_t Sample16kHz_raw_end[]   asm("_binary_Sample16kHz_mono_8kHz_
 
 unsigned int get_data(short int *buffer, unsigned buffer_entry_count) {
 	static short int *current_buffer_address = (short int *)Sample16kHz_raw_start;
-
+    
 	if (current_buffer_address >= (short int *)Sample16kHz_raw_end) {
 		return 0;
 	}
@@ -34,8 +34,8 @@ unsigned int get_data(short int *buffer, unsigned buffer_entry_count) {
 	if (buffer_entry_count > entries_available) {
 		buffer_entry_count = entries_available;
 	}
-
-	memcpy(buffer, current_buffer_address, buffer_entry_count);
+    
+	memcpy(buffer, current_buffer_address, buffer_entry_count * sizeof(short int));
 	current_buffer_address += buffer_entry_count;
 	return buffer_entry_count;
 }
@@ -63,7 +63,7 @@ esp_err_t encode_audio(FILE *f, unsigned int sampleRate, int num_channels) {
 		 printf("Failed to allocated MP3 buffer.\n");
 		 return ESP_ERR_NO_MEM;
 	 }
-	 pcm_samples = malloc(nsamples);
+	 pcm_samples = malloc(nsamples * sizeof(short int));
 	 if (!pcm_samples) {
 		 printf("Failed to allocated sample buffer.\n");
 		 return ESP_ERR_NO_MEM;
@@ -119,12 +119,12 @@ esp_err_t encode_audio(FILE *f, unsigned int sampleRate, int num_channels) {
 
 		 if (num_channels == 1) {
 			 // Mono
-			 num_samples_encoded = lame_encode_buffer(lame, pcm_samples, pcm_samples, samples_retrieved, mp3buf, mp3buf_size);
+			 num_samples_encoded = lame_encode_buffer(lame, pcm_samples, pcm_samples, nsamples, mp3buf, mp3buf_size);
 		 }
 		 else {
 			 // Stereo
 		     // Pass in the number of samples in one channel. That is the total number of samples divided by num_channels.
-			 num_samples_encoded = lame_encode_buffer_interleaved(lame, pcm_samples, samples_retrieved / num_channels, mp3buf, mp3buf_size);
+			 num_samples_encoded = lame_encode_buffer_interleaved(lame, pcm_samples, nsamples / num_channels, mp3buf, mp3buf_size);
 		 }
 
 	  //   printf("number of samples encoded = %d pcm_samples %p \n", num_samples_encoded, pcm_samples);
@@ -222,8 +222,6 @@ esp_err_t encode_audio(FILE *f, unsigned int sampleRate, int num_channels) {
 	 lame_close(lame);
 	 printf("\nClose\n");
 
-	 while (1) vTaskDelay(500 / portTICK_RATE_MS);
-
 	 return ESP_OK;
 }
 
@@ -246,4 +244,6 @@ void lameTest()
 
      fclose(f);
 	 unmount_sd_card();
+
+	 while (1) vTaskDelay(500 / portTICK_RATE_MS);
 }
