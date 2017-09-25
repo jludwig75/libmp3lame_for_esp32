@@ -2,6 +2,7 @@
 #include "lame_test.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "esp_system.h"
 #include <assert.h>
 #include <esp_types.h>
@@ -23,6 +24,9 @@
 extern const uint8_t Sample16kHz_raw_start[] asm("_binary_Sample16kHz_mono_8kHz_raw_start");
 extern const uint8_t Sample16kHz_raw_end[]   asm("_binary_Sample16kHz_mono_8kHz_raw_end");
 
+StaticQueue_t sample_queue;
+QueueHandle_t sample_queue_handle;
+
 unsigned int get_data(short int *buffer, unsigned buffer_entry_count) {
 	static short int *current_buffer_address = (short int *)Sample16kHz_raw_start;
     
@@ -35,8 +39,22 @@ unsigned int get_data(short int *buffer, unsigned buffer_entry_count) {
 		buffer_entry_count = entries_available;
 	}
     
-	memcpy(buffer, current_buffer_address, buffer_entry_count * sizeof(short int));
-	current_buffer_address += buffer_entry_count;
+    for (unsigned int i = 0; i < buffer_entry_count; i++, current_buffer_address++) {
+        if (!xQueueSend(sample_queue_handle, current_buffer_address, 0)) {
+            printf("Failed to send item to queue\n");
+        }
+    }
+    
+    for (unsigned int i = 0; i < buffer_entry_count; i++) {
+        short int sample;
+        if (!xQueueReceive(sample_queue_handle, &sample, portMAX_DELAY)) {
+            printf("Failed to receive item from queue\n");
+        }
+        buffer[i] = sample;
+    }
+    
+	//memcpy(buffer, current_buffer_address, buffer_entry_count * sizeof(short int));
+	//current_buffer_address += buffer_entry_count;
 	return buffer_entry_count;
 }
 
@@ -116,6 +134,9 @@ esp_err_t encode_audio(FILE *f, unsigned int sampleRate, int num_channels) {
 	 {
 		   //  printf("\n=============== lame_encode_buffer_interleaved================ \n");
 	 /* encode samples. */
+        if (samples_retrieved < nsamples) {
+            memset(pcm_samples + samples_retrieved, 0, sizeof(short int) * (nsamples - samples_retrieved));
+        }
 
 		 if (num_channels == 1) {
 			 // Mono
@@ -148,7 +169,7 @@ esp_err_t encode_audio(FILE *f, unsigned int sampleRate, int num_channels) {
 	       printf("Psycho acoustic problems.\n");
 	       return ESP_FAIL;
 	     } else {
-	       printf("The conversion was not successful.\n");
+	       printf("The conversion was not successful: %d.\n", num_samples_encoded);
 	       return ESP_FAIL;
 	     }
 
@@ -225,8 +246,16 @@ esp_err_t encode_audio(FILE *f, unsigned int sampleRate, int num_channels) {
 	 return ESP_OK;
 }
 
+short int sample_queue_buffer[1200];
+
 void lameTest()
 {
+    sample_queue_handle = xQueueCreateStatic(1200, sizeof(sample_queue_buffer[0]), (uint8_t *)sample_queue_buffer, &sample_queue);
+    if (!sample_queue_handle) {
+        printf("Unable to create sample queue.\n");
+        return;
+    }
+
 	 esp_err_t ret = mount_sd_card("/sdcard");
 	 if (ret != ESP_OK) {
 		 printf("Error %d mounting SD card\n", ret);
