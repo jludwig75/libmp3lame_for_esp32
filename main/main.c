@@ -23,6 +23,8 @@ void app_main(void)
 
     lameTest();
 
+    while (1) vTaskDelay(500 / portTICK_RATE_MS);
+
 /*
     gpio_set_direction(GPIO_NUM_4, GPIO_MODE_OUTPUT);
     int level = 0;
