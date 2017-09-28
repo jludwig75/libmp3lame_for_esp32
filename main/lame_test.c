@@ -30,35 +30,61 @@ extern const uint8_t Sample16kHz_raw_end[]   asm("_binary_Sample16kHz_mono_8kHz_
 
 StaticQueue_t sample_queue;
 QueueHandle_t sample_queue_handle;
+bool data_sampler_stopped = false;
 
-unsigned int get_data(short int *buffer, unsigned buffer_entry_count) {
-    static short int *current_buffer_address = (short int *)Sample16kHz_raw_start;
-    
-    if (current_buffer_address >= (short int *)Sample16kHz_raw_end) {
-        return 0;
+uint64_t timer_ticks = 0;
+short int *current_buffer_address = (short int *)Sample16kHz_raw_start;
+
+static void timer_isr(void* arg)
+{
+    /* We have not woken a task at the start of the ISR. */
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    TIMERG0.int_clr_timers.t0 = 1;
+    TIMERG0.hw_timer[0].config.alarm_en = 1;
+
+    // your code, runs in the interrupt
+    if (current_buffer_address < (short int *)Sample16kHz_raw_end)
+    {
+    	if (current_buffer_address + 1 >= (short int *)Sample16kHz_raw_end)
+    	{
+    		data_sampler_stopped = true;
+    	}
+    	if (xQueueSendFromISR(sample_queue_handle, current_buffer_address, &xHigherPriorityTaskWoken))
+    	{
+    		current_buffer_address++;
+    	}
     }
 
-    unsigned int entries_available = (short int *)Sample16kHz_raw_end - current_buffer_address;
-    if (buffer_entry_count > entries_available) {
-        buffer_entry_count = entries_available;
+    if (xHigherPriorityTaskWoken)
+    {
+        /* Actual macro used here is port specific. */
+
+        portYIELD_FROM_ISR();
     }
-    
-    for (unsigned int i = 0; i < buffer_entry_count; i++, current_buffer_address++) {
-        if (!xQueueSend(sample_queue_handle, current_buffer_address, 0)) {
-            printf("Failed to send item to queue\n");
-        }
-    }
-    
-    for (unsigned int i = 0; i < buffer_entry_count; i++) {
+
+    timer_ticks++;
+}
+
+unsigned int get_data(short int *buffer, unsigned buffer_entry_count)
+{
+    for (unsigned int i = 0; i < buffer_entry_count; )
+    {
         short int sample;
-        if (!xQueueReceive(sample_queue_handle, &sample, portMAX_DELAY)) {
+        if (xQueueReceive(sample_queue_handle, &sample, data_sampler_stopped ? 0 : portMAX_DELAY))
+        {
+            buffer[i++] = sample;
+        }
+        else
+        {
+        	if (data_sampler_stopped && uxQueueMessagesWaiting(sample_queue_handle) == 0)
+        	{
+        		return i;
+        	}
             printf("Failed to receive item from queue\n");
         }
-        buffer[i] = sample;
     }
     
-    //memcpy(buffer, current_buffer_address, buffer_entry_count * sizeof(short int));
-    //current_buffer_address += buffer_entry_count;
     return buffer_entry_count;
 }
 
@@ -306,16 +332,6 @@ short int sample_queue_buffer[1200];
 
 
 static intr_handle_t s_timer_handle;
-uint64_t timer_ticks = 0;
-
-static void timer_isr(void* arg)
-{
-    TIMERG0.int_clr_timers.t0 = 1;
-    TIMERG0.hw_timer[0].config.alarm_en = 1;
-
-    // your code, runs in the interrupt
-    timer_ticks++;
-}
 
 void init_timer(int timer_period_us)
 {
