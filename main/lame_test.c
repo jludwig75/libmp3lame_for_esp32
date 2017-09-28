@@ -33,12 +33,13 @@ QueueHandle_t sample_queue_handle;
 bool data_sampler_stopped = false;
 
 uint64_t timer_ticks = 0;
+uint32_t lost_samples = 0;
 short int *current_buffer_address = (short int *)Sample16kHz_raw_start;
 
 static void timer_isr(void* arg)
 {
     /* We have not woken a task at the start of the ISR. */
-	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
     TIMERG0.int_clr_timers.t0 = 1;
     TIMERG0.hw_timer[0].config.alarm_en = 1;
@@ -46,14 +47,15 @@ static void timer_isr(void* arg)
     // your code, runs in the interrupt
     if (current_buffer_address < (short int *)Sample16kHz_raw_end)
     {
-    	if (current_buffer_address + 1 >= (short int *)Sample16kHz_raw_end)
-    	{
-    		data_sampler_stopped = true;
-    	}
-    	if (xQueueSendFromISR(sample_queue_handle, current_buffer_address, &xHigherPriorityTaskWoken))
-    	{
-    		current_buffer_address++;
-    	}
+        if (current_buffer_address + 1 >= (short int *)Sample16kHz_raw_end)
+        {
+            data_sampler_stopped = true;
+        }
+        if (!xQueueSendFromISR(sample_queue_handle, current_buffer_address, &xHigherPriorityTaskWoken))
+        {
+            lost_samples++;
+        }
+        current_buffer_address++;
     }
 
     if (xHigherPriorityTaskWoken)
@@ -77,10 +79,10 @@ unsigned int get_data(short int *buffer, unsigned buffer_entry_count)
         }
         else
         {
-        	if (data_sampler_stopped && uxQueueMessagesWaiting(sample_queue_handle) == 0)
-        	{
-        		return i;
-        	}
+            if (data_sampler_stopped && uxQueueMessagesWaiting(sample_queue_handle) == 0)
+            {
+                return i;
+            }
             printf("Failed to receive item from queue\n");
         }
     }
@@ -106,8 +108,8 @@ struct esp_encoder
 
 esp_err_t esp_encoder__initialize(struct esp_encoder *encoder, unsigned int sampleRate, int num_channels)
 {
-	encoder->sampleRate = sampleRate;
-	encoder->num_channels = num_channels;
+    encoder->sampleRate = sampleRate;
+    encoder->num_channels = num_channels;
     encoder->framesize = 0;
     encoder->total=0;
     encoder->frames=0;
@@ -190,145 +192,145 @@ esp_err_t esp_encoder__initialize(struct esp_encoder *encoder, unsigned int samp
 
 esp_err_t esp_encoder__encode_audio(struct esp_encoder *encoder, FILE *f)
 {
-	struct timeval tvalBefore, tvalFirstFrame, tvalAfter;
-	int bytes_written;
-	unsigned int samples_retrieved;
-	int num_samples_encoded;
+    struct timeval tvalBefore, tvalFirstFrame, tvalAfter;
+    int bytes_written;
+    unsigned int samples_retrieved;
+    int num_samples_encoded;
 
 
-	gettimeofday (&tvalBefore, NULL);
-	while ((samples_retrieved = get_data(encoder->pcm_samples, encoder->nsamples)) > 0)
-	{
-		//  printf("\n=============== lame_encode_buffer_interleaved================ \n");
-		/* encode samples. */
-		if (samples_retrieved < encoder->nsamples) {
-			memset(encoder->pcm_samples + samples_retrieved, 0, sizeof(short int) * (encoder->nsamples - samples_retrieved));
-		}
+    gettimeofday (&tvalBefore, NULL);
+    while ((samples_retrieved = get_data(encoder->pcm_samples, encoder->nsamples)) > 0)
+    {
+        //  printf("\n=============== lame_encode_buffer_interleaved================ \n");
+        /* encode samples. */
+        if (samples_retrieved < encoder->nsamples) {
+            memset(encoder->pcm_samples + samples_retrieved, 0, sizeof(short int) * (encoder->nsamples - samples_retrieved));
+        }
 
-		if (encoder->num_channels == 1)
-		{
-			// Mono
-			num_samples_encoded = lame_encode_buffer(encoder->lame, encoder->pcm_samples, encoder->pcm_samples, encoder->nsamples, encoder->mp3buf, encoder->mp3buf_size);
-		}
-		else
-		{
-			// Stereo
-			// Pass in the number of samples in one channel. That is the total number of samples divided by num_channels.
-			num_samples_encoded = lame_encode_buffer_interleaved(encoder->lame, encoder->pcm_samples, encoder->nsamples / encoder->num_channels, encoder->mp3buf, encoder->mp3buf_size);
-		}
+        if (encoder->num_channels == 1)
+        {
+            // Mono
+            num_samples_encoded = lame_encode_buffer(encoder->lame, encoder->pcm_samples, encoder->pcm_samples, encoder->nsamples, encoder->mp3buf, encoder->mp3buf_size);
+        }
+        else
+        {
+            // Stereo
+            // Pass in the number of samples in one channel. That is the total number of samples divided by num_channels.
+            num_samples_encoded = lame_encode_buffer_interleaved(encoder->lame, encoder->pcm_samples, encoder->nsamples / encoder->num_channels, encoder->mp3buf, encoder->mp3buf_size);
+        }
 
-		//   printf("number of samples encoded = %d pcm_samples %p \n", num_samples_encoded, pcm_samples);
+        //   printf("number of samples encoded = %d pcm_samples %p \n", num_samples_encoded, pcm_samples);
 
-		if (encoder->total==0)
-		{
-			gettimeofday (&tvalFirstFrame, NULL);
-		}
+        if (encoder->total==0)
+        {
+            gettimeofday (&tvalFirstFrame, NULL);
+        }
 
-		/* check for value returned.*/
-		if(num_samples_encoded > 1)
-		{
-			//printf("It seems the conversion was successful.\n");
-			encoder->total+=num_samples_encoded;
-		}
-		else if(num_samples_encoded == -1)
-		{
-			printf("mp3buf was too small\n");
-			return ESP_FAIL;
-		}
-		else if(num_samples_encoded == -2)
-		{
-			printf("There was a malloc problem.\n");
-			return ESP_FAIL;
-		}
-		else if(num_samples_encoded == -3)
-		{
-			printf("lame_init_params() not called.\n");
-			return ESP_FAIL;
-		}
-		else if(num_samples_encoded == -4)
-		{
-			printf("Psycho acoustic problems.\n");
-			return ESP_FAIL;
-		}
-		else
-		{
-			printf("The conversion was not successful: %d.\n", num_samples_encoded);
-			return ESP_FAIL;
-		}
-
-
-		// printf("Contents of mp3buffer = ");
-		/*   for(int i = 0; i < num_samples_encoded; i++) {
-		printf("%02X", mp3buf[i]);
-		}
-		*/
-		bytes_written = (int)fwrite(encoder->mp3buf, 1, num_samples_encoded, f);
-		if (bytes_written != num_samples_encoded)
-		{
-			printf("Error writing to MP3 file\n");
-			return ESP_FAIL;
-		}
-
-		encoder->frames++;
-	}
-
-	printf("\n");
-
-	gettimeofday (&tvalAfter, NULL);
-
-	printf("Fist Frame time in microseconds: %ld microseconds\n",
-			((tvalFirstFrame.tv_sec - tvalBefore.tv_sec)*1000000L
-			+tvalFirstFrame.tv_usec) - tvalBefore.tv_usec
-			);
+        /* check for value returned.*/
+        if(num_samples_encoded > 1)
+        {
+            //printf("It seems the conversion was successful.\n");
+            encoder->total+=num_samples_encoded;
+        }
+        else if(num_samples_encoded == -1)
+        {
+            printf("mp3buf was too small\n");
+            return ESP_FAIL;
+        }
+        else if(num_samples_encoded == -2)
+        {
+            printf("There was a malloc problem.\n");
+            return ESP_FAIL;
+        }
+        else if(num_samples_encoded == -3)
+        {
+            printf("lame_init_params() not called.\n");
+            return ESP_FAIL;
+        }
+        else if(num_samples_encoded == -4)
+        {
+            printf("Psycho acoustic problems.\n");
+            return ESP_FAIL;
+        }
+        else
+        {
+            printf("The conversion was not successful: %d.\n", num_samples_encoded);
+            return ESP_FAIL;
+        }
 
 
-	printf("Total time in microseconds: %ld microseconds\n",
-			((tvalAfter.tv_sec - tvalBefore.tv_sec)*1000000L
-			+tvalAfter.tv_usec) - tvalBefore.tv_usec
-			);
+        // printf("Contents of mp3buffer = ");
+        /*   for(int i = 0; i < num_samples_encoded; i++) {
+        printf("%02X", mp3buf[i]);
+        }
+        */
+        bytes_written = (int)fwrite(encoder->mp3buf, 1, num_samples_encoded, f);
+        if (bytes_written != num_samples_encoded)
+        {
+            printf("Error writing to MP3 file\n");
+            return ESP_FAIL;
+        }
 
-	printf ("Total frames: %d TotalBytes: %d\n", encoder->frames, encoder->total);
+        encoder->frames++;
+    }
+
+    printf("\n");
+
+    gettimeofday (&tvalAfter, NULL);
+
+    printf("Fist Frame time in microseconds: %ld microseconds\n",
+            ((tvalFirstFrame.tv_sec - tvalBefore.tv_sec)*1000000L
+            +tvalFirstFrame.tv_usec) - tvalBefore.tv_usec
+            );
 
 
-	num_samples_encoded = lame_encode_flush(encoder->lame, encoder->mp3buf, encoder->mp3buf_size);
-	if(num_samples_encoded < 0)
-	{
-		if(num_samples_encoded == -1)
-		{
-			printf("mp3buffer is probably not big enough.\n");
-		}
-		else
-		{
-			printf("MP3 internal error.\n");
-		}
-		return ESP_FAIL;
-	}
-	else
-	{
-		for(int i = 0; i < num_samples_encoded; i++)
-		{
-			printf("%02X ", encoder->mp3buf[i]);
-		}
+    printf("Total time in microseconds: %ld microseconds\n",
+            ((tvalAfter.tv_sec - tvalBefore.tv_sec)*1000000L
+            +tvalAfter.tv_usec) - tvalBefore.tv_usec
+            );
 
-		encoder->total += num_samples_encoded;
-		printf("Flushing stage yielded %d frames.\n", num_samples_encoded);
-		bytes_written = (int)fwrite(encoder->mp3buf, 1, num_samples_encoded, f);
+    printf ("Total frames: %d TotalBytes: %d\n", encoder->frames, encoder->total);
 
-		if (bytes_written != num_samples_encoded)
-		{
-			printf("Error writing to MP3 file\n");
-			return ESP_FAIL;
-		}
-	}
 
-	// =========================================================
-	lame_close(encoder->lame);
-	printf("\nClose\n");
+    num_samples_encoded = lame_encode_flush(encoder->lame, encoder->mp3buf, encoder->mp3buf_size);
+    if(num_samples_encoded < 0)
+    {
+        if(num_samples_encoded == -1)
+        {
+            printf("mp3buffer is probably not big enough.\n");
+        }
+        else
+        {
+            printf("MP3 internal error.\n");
+        }
+        return ESP_FAIL;
+    }
+    else
+    {
+        for(int i = 0; i < num_samples_encoded; i++)
+        {
+            printf("%02X ", encoder->mp3buf[i]);
+        }
 
-	return ESP_OK;
+        encoder->total += num_samples_encoded;
+        printf("Flushing stage yielded %d frames.\n", num_samples_encoded);
+        bytes_written = (int)fwrite(encoder->mp3buf, 1, num_samples_encoded, f);
+
+        if (bytes_written != num_samples_encoded)
+        {
+            printf("Error writing to MP3 file\n");
+            return ESP_FAIL;
+        }
+    }
+
+    // =========================================================
+    lame_close(encoder->lame);
+    printf("\nClose\n");
+
+    return ESP_OK;
 }
 
-short int sample_queue_buffer[1200];
+short int sample_queue_buffer[2400];
 
 
 static intr_handle_t s_timer_handle;
@@ -410,6 +412,8 @@ void lameTest()
          unmount_sd_card();
          return;
      }
+
+     printf("%u lost samples\n", lost_samples);
 
      fclose(f);
      unmount_sd_card();
