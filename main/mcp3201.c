@@ -41,7 +41,10 @@ void mcp3201_begin(int8_t sck, int8_t miso, int8_t mosi, int8_t ss, int8_t cs)
     spiSetBitOrder(_spi, SPI_MSBFIRST /*MSBFIRST*/);
 
     _div = SPI_CLOCK_DIV4;
-     spiSetClockDiv(_spi, _div);
+    spiSetClockDiv(_spi, _div);
+
+
+    digitalWrite(_cs, HIGH);
 }
 
 uint16_t mcp3201_get_value()
