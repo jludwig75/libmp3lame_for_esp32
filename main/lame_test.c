@@ -24,8 +24,9 @@
 #include "esp_intr_alloc.h"
 #include "esp_attr.h"
 #include "driver/timer.h"
-#include "driver/adc.h"
 #include "driver/gpio.h"
+
+#include "mcp3201.h"
 
 extern const uint8_t Sample16kHz_raw_start[] asm("_binary_Sample16kHz_mono_8kHz_raw_start");
 extern const uint8_t Sample16kHz_raw_end[]   asm("_binary_Sample16kHz_mono_8kHz_raw_end");
@@ -57,7 +58,7 @@ static void timer_isr(void* arg)
     // your code, runs in the interrupt
     if (current_buffer_address < (short int *)Sample16kHz_raw_end)
     {
-        int32_t val = adc1_get_voltage(ADC1_CHANNEL_6);
+        int32_t val = mcp3201_get_value();
         if (val >= 2 * center)
         {
             val = (2 * center) - 1;
@@ -395,20 +396,7 @@ void lameTest()
 //
 //    while (1) vTaskDelay(500 / portTICK_RATE_MS);
 
-    adc1_config_width(ADC_WIDTH_12Bit);
-    adc1_config_channel_atten(ADC1_CHANNEL_6, ADC_ATTEN_11db);
-
-//    int64_t vals = 0;
-//    const int total_samples = 10000;
-//
-//    for (int i = 0; i < total_samples; i++) {
-//        int32_t val = adc1_get_voltage(ADC1_CHANNEL_6);
-//        vals += val;
-//        vTaskDelay(1 / portTICK_RATE_MS);
-//    }
-//    printf("Mic voltage = %d\n", (int32_t)(vals / total_samples));
-//
-//    return;
+    mcp3201_begin(0, 0, 0, 0, 0);
 
     sample_queue_handle = xQueueCreateStatic(1200, sizeof(sample_queue_buffer[0]), (uint8_t *)sample_queue_buffer, &sample_queue);
     if (!sample_queue_handle) {
