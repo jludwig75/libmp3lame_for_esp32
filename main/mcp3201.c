@@ -22,6 +22,7 @@ void mcp3201_begin(int8_t sck, int8_t miso, int8_t mosi, int8_t ss, int8_t cs)
         _div = spiFrequencyToClockDiv(_freq);
     }
 
+    _spi_num = VSPI;
     _spi = spiStartBus(_spi_num, _div, SPI_MODE0, SPI_MSBFIRST);
     if(!_spi) {
         return;
@@ -43,8 +44,7 @@ void mcp3201_begin(int8_t sck, int8_t miso, int8_t mosi, int8_t ss, int8_t cs)
     _div = SPI_CLOCK_DIV4;
     spiSetClockDiv(_spi, _div);
 
-
-    digitalWrite(_cs, HIGH);
+    gpio_set_level(_cs, 1);
 }
 
 uint16_t mcp3201_get_value()
@@ -52,12 +52,12 @@ uint16_t mcp3201_get_value()
 	uint16_t result;
 	uint8_t inByte;
 
-	digitalWrite(_cs, LOW);
+    gpio_set_level(_cs, 0);
 	result = spiTransferByte(_spi, 0x00);
 	result = result << 8;
 	inByte = spiTransferByte(_spi, 0x00);
 	result = result | inByte;
-	digitalWrite(_cs, HIGH);
+    gpio_set_level(_cs, 1);
 	result = result >> 1;
 	result = result & 0b0000111111111111;
 

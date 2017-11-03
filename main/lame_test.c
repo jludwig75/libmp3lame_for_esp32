@@ -28,6 +28,9 @@
 
 #include "mcp3201.h"
 
+#define GPIO_OUTPUT_IO_0    17
+#define GPIO_OUTPUT_PIN_SEL  (1<<GPIO_OUTPUT_IO_0)
+
 extern const uint8_t Sample16kHz_raw_start[] asm("_binary_Sample16kHz_mono_8kHz_raw_start");
 extern const uint8_t Sample16kHz_raw_end[]   asm("_binary_Sample16kHz_mono_8kHz_raw_end");
 
@@ -379,6 +382,20 @@ void init_timer(int timer_period_us)
 
 void lameTest()
 {
+    gpio_config_t io_conf;
+    //disable interrupt
+    io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
+    //set as output mode
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    //bit mask of the pins that you want to set,e.g.GPIO18/19
+    io_conf.pin_bit_mask = GPIO_OUTPUT_PIN_SEL;
+    //disable pull-down mode
+    io_conf.pull_down_en = 0;
+    //disable pull-up mode
+    io_conf.pull_up_en = 0;
+    //configure GPIO with the given settings
+    gpio_config(&io_conf);
+
 //    uint64_t last_timer_tick_count = 0;
 //
 //    while (1)
@@ -396,7 +413,13 @@ void lameTest()
 //
 //    while (1) vTaskDelay(500 / portTICK_RATE_MS);
 
-    mcp3201_begin(0, 0, 0, 0, 0);
+    mcp3201_begin(18, 19, 23, -1, 17);
+
+    printf("Audio level = %u\n", mcp3201_get_value());
+    vTaskDelay(100 / portTICK_RATE_MS);
+    printf("Audio level = %u\n", mcp3201_get_value());
+    vTaskDelay(100 / portTICK_RATE_MS);
+    printf("Audio level = %u\n", mcp3201_get_value());
 
     sample_queue_handle = xQueueCreateStatic(1200, sizeof(sample_queue_buffer[0]), (uint8_t *)sample_queue_buffer, &sample_queue);
     if (!sample_queue_handle) {
