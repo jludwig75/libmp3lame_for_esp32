@@ -1,13 +1,9 @@
 #include "data_converter.h"
 
+#include "utils.h"
+
 #include <assert.h>
 
-
-template<typename _T>
-static _T map(_T x, _T in_min, _T in_max, _T out_min, _T out_max)
-{
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
 
 
 DataConverter::DataConverter(uint16_t center_value, uint16_t adc_max) :

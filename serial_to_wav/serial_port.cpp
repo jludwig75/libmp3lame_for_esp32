@@ -21,7 +21,7 @@ bool SerialPort::open()
     return false;
 }
 
-size_t SerialPort::read_samples(uint16_t * buffer, size_t buffer_size) const
+bool SerialPort::read_samples(uint16_t * buffer, size_t buffer_entry_count, size_t & samples_read) const
 {
     return 0;
 }

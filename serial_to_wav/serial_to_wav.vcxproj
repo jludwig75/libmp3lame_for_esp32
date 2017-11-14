@@ -80,6 +80,7 @@
   <ItemGroup>
     <ClCompile Include="data_analyzer.cpp" />
     <ClCompile Include="data_converter.cpp" />
+    <ClCompile Include="serial_from_file.cpp" />
     <ClCompile Include="serial_port.cpp" />
     <ClCompile Include="serial_to_wav.cpp" />
     <ClCompile Include="wav_file.cpp" />
@@ -87,7 +88,10 @@
   <ItemGroup>
     <ClInclude Include="data_analyzer.h" />
     <ClInclude Include="data_converter.h" />
+    <ClInclude Include="i_serial_port.h" />
+    <ClInclude Include="serial_from_file.h" />
     <ClInclude Include="serial_port.h" />
+    <ClInclude Include="utils.h" />
     <ClInclude Include="wav_file.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

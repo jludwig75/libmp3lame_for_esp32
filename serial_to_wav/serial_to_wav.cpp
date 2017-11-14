@@ -2,9 +2,11 @@
 #include "wav_file.h"
 #include "data_converter.h"
 #include "data_analyzer.h"
+#include "serial_from_file.h"
 
 #include <vector>
 #include <sstream>
+#include <memory>
 
 #include <assert.h>
 #include <conio.h>
@@ -13,7 +15,40 @@
 using namespace std;
 
 
-int find_center_value(const SerialPort & port)
+static bool is_com_port_name(const std::string &name)
+{
+    if (name.length() < string("COMX").length())
+    {
+        return false;
+    }
+
+    if (name.substr(0, 3) != "COM")
+    {
+        return false;
+    }
+
+    stringstream ss(name.substr(3));
+    unsigned int i;
+    ss >> i;
+
+    return ss.eof() && !ss.bad();
+}
+
+bool open_serial_port(const string & port_name, shared_ptr<iSerialPort> & port)
+{
+    if (is_com_port_name(port_name))
+    {
+        port = make_shared<SerialPort>(port_name);
+    }
+    else
+    {
+        port = make_shared<SerialFromFile>(port_name, 1852);
+    }
+
+    return port->open();
+}
+
+int find_center_value(shared_ptr<iSerialPort> port)
 {
     const size_t number_of_samples_per_transaction = 128;
     
@@ -30,7 +65,12 @@ int find_center_value(const SerialPort & port)
             break;
         }
 
-        size_t samples_read = port.read_samples(&adc_samples[0], adc_samples.size());
+        size_t samples_read;
+        if (!port->read_samples(&adc_samples[0], adc_samples.size(), samples_read))
+        {
+            printf("Error reading from serial port\n");
+            return -1;
+        }
         assert(samples_read <= adc_samples.size());
         if (samples_read == 0)
         {
@@ -44,16 +84,15 @@ int find_center_value(const SerialPort & port)
     return 0;
 }
 
-int record_from_serial_to_wav_file(const SerialPort & port)
+int record_from_serial_to_wav_file(shared_ptr<iSerialPort> port, const std::string & wav_file_name, uint16_t adc_center_value)
 {
-    const uint16_t adc_center_value = 1852;
     const uint16_t adx_max = 4095;
     const size_t number_of_samples_per_transaction = 128;
     const size_t samples_per_second = 8000; // 8 kHz
 
     DataConverter converter(adc_center_value, adx_max);
 
-    WavFile wav("sample.wav", samples_per_second);
+    WavFile wav(wav_file_name, samples_per_second);
     if (!wav.create())
     {
         printf("Failed to create WAV file %s\n", wav.name().c_str());
@@ -72,7 +111,12 @@ int record_from_serial_to_wav_file(const SerialPort & port)
             break;
         }
 
-        size_t samples_read = port.read_samples(&adc_samples[0], adc_samples.size());
+        size_t samples_read;
+        if (!port->read_samples(&adc_samples[0], adc_samples.size(), samples_read))
+        {
+            printf("Error reading from serial port\n");
+            return -1;
+        }
         assert(samples_read <= adc_samples.size());
         if (samples_read == 0)
         {
@@ -134,10 +178,10 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    SerialPort port(port_name);
-    if (!port.open())
+    shared_ptr<iSerialPort> port;
+    if (!open_serial_port(port_name, port))
     {
-        printf("Failed to open serial port %s\n", port.name().c_str());
+        printf("Failed to open serial port %s\n", port_name.c_str());
         return -1;
     }
 
@@ -146,7 +190,7 @@ int main(int argc, char *argv[])
     case serial_to_wave_operation__find_center:
         return find_center_value(port);
     case serial_to_wave_operation__record_wav_file:
-        return record_from_serial_to_wav_file(port);
+        return record_from_serial_to_wav_file(port, wav_file_name, adc_center_value);
     default:
         assert(false);
         return -1;
