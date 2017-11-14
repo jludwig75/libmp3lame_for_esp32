@@ -14,6 +14,8 @@ public:
     // Non-blocking call to read all available samples
     virtual bool read_samples(uint16_t * buffer, size_t buffer_entry_count, size_t & samples_read) const;
 private:
+    void convert_samples_in_place(uint16_t * buffer, size_t num_samples) const;
+
     int _handle;
     std::string _name;
     uint16_t _adc_center_value;

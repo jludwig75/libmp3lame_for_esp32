@@ -27,12 +27,12 @@ bool SerialFromFile::open()
     return err == 0;
 }
 
-static void convert_samples_in_place(uint16_t * buffer, size_t num_samples, uint16_t adc_center_value)
+void SerialFromFile::convert_samples_in_place(uint16_t * buffer, size_t num_samples) const
 {
     int16_t *output_buffer = reinterpret_cast<int16_t *>(buffer);
     for (size_t i = 0; i < num_samples; i++)
     {
-        output_buffer[i] = map<int16_t>(buffer[i], INT16_MIN, INT16_MAX, 0, 2 * adc_center_value);
+        output_buffer[i] = map<int16_t>(buffer[i], INT16_MIN, INT16_MAX, 0, 2 * _adc_center_value);
     }
 }
 
@@ -46,6 +46,6 @@ bool SerialFromFile::read_samples(uint16_t * buffer, size_t buffer_entry_count, 
     }
 
     samples_read = ret / sizeof(uint16_t);
-    convert_samples_in_place(buffer, samples_read, _adc_center_value);
+    convert_samples_in_place(buffer, samples_read);
     return true;
 }

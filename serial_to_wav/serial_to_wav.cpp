@@ -80,7 +80,7 @@ int find_center_value(shared_ptr<iSerialPort> port)
         analyzer.record_adc_samples(&adc_samples[0], samples_read);
     }
 
-    printf("Center value is %u\n", analyzer.avarage());
+    printf("Min: %u, Center: %u, Max: %u\n", analyzer.min(), analyzer.avarage(), analyzer.max());
     return 0;
 }
 
