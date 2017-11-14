@@ -6,3 +6,5 @@ sdkconfig.old
 .vs
 Debug/
 Release/
+*.sdf
+*.suo
