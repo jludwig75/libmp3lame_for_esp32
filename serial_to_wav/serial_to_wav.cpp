@@ -2,7 +2,6 @@
 #include "wav_file.h"
 #include "data_converter.h"
 #include "data_analyzer.h"
-#include "serial_from_file.h"
 
 #include <vector>
 #include <sstream>
@@ -36,27 +35,23 @@ static bool is_com_port_name(const std::string &name)
 
 bool open_serial_port(const string & port_name, shared_ptr<iSerialPort> & port)
 {
-    if (is_com_port_name(port_name))
-    {
-        port = make_shared<SerialPort>(port_name);
-    }
-    else
-    {
-        port = make_shared<SerialFromFile>(port_name, 1852);
-    }
+    port = make_shared<SerialPort>(port_name, !is_com_port_name(port_name));
 
     return port->open();
 }
 
 int find_center_value(shared_ptr<iSerialPort> port)
 {
-    const size_t number_of_samples_per_transaction = 128;
+    const size_t number_of_samples_per_transaction = 2000;
     
     DataAnalyzer analyzer;
 
     std::vector<uint16_t> adc_samples(number_of_samples_per_transaction, 0);
 
     printf("Finding signal center value. Press 'q' to quit\n");
+
+    bool report_end = false;
+    bool read_first_samples = false;
 
     while (true)
     {
@@ -74,7 +69,16 @@ int find_center_value(shared_ptr<iSerialPort> port)
         assert(samples_read <= adc_samples.size());
         if (samples_read == 0)
         {
+            if (read_first_samples && !report_end)
+            {
+                printf("First zero-byte read. Possible end of data. Press 'q' to quit\n");
+                report_end = true;
+            }
             continue;
+        }
+        else
+        {
+            read_first_samples = true;
         }
 
         analyzer.record_adc_samples(&adc_samples[0], samples_read);
@@ -84,10 +88,12 @@ int find_center_value(shared_ptr<iSerialPort> port)
     return 0;
 }
 
+#include <Windows.h>
+
 int record_from_serial_to_wav_file(shared_ptr<iSerialPort> port, const std::string & wav_file_name, uint16_t adc_center_value)
 {
     const uint16_t adx_max = 4095;
-    const size_t number_of_samples_per_transaction = 128;
+    const size_t number_of_samples_per_transaction = 2000;
     const size_t samples_per_second = 8000; // 8 kHz
 
     DataConverter converter(adc_center_value, adx_max);
@@ -104,6 +110,9 @@ int record_from_serial_to_wav_file(shared_ptr<iSerialPort> port, const std::stri
 
     printf("Recording signal to WAV file \"%s\". Press 'q' to quit\n", wav.name().c_str());
 
+    bool report_end = false;
+    bool read_first_samples = false;
+
     while (true)
     {
         if (_kbhit() && tolower(_getch()) == 'q')
@@ -120,7 +129,16 @@ int record_from_serial_to_wav_file(shared_ptr<iSerialPort> port, const std::stri
         assert(samples_read <= adc_samples.size());
         if (samples_read == 0)
         {
+            if (read_first_samples && !report_end)
+            {
+                printf("First zero-byte read. Possible end of data. Press 'q' to quit\n");
+                report_end = true;
+            }
             continue;
+        }
+        else
+        {
+            read_first_samples = true;
         }
 
         converter.convert_adc_levels_to_samples(&adc_samples[0], &audio_samples[0], samples_read);
