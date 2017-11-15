@@ -132,6 +132,8 @@ int record_from_serial_to_wav_file(shared_ptr<iSerialPort> port, const std::stri
         }
     }
 
+    wav.close();
+
     return 0;
 }
 

@@ -29,6 +29,6 @@ void DataConverter::convert_adc_levels_to_samples(const uint16_t *adc_levels, in
 {
     for (unsigned i = 0; i < samples_to_convert; i++)
     {
-        audio_samples[i] = adc_levels[i];
+        audio_samples[i] = convert_adc_level_to_sample(adc_levels[i]);
     }
 }
