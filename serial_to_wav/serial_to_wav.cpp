@@ -14,6 +14,43 @@
 using namespace std;
 
 
+bool wait_for_start_sequence(shared_ptr<iSerialPort> port, uint8_t *expected_simulation_start_sequence, size_t start_sequence_byte_length)
+{
+    assert(start_sequence_byte_length > 0);
+
+    vector<uint8_t> current_sequence(start_sequence_byte_length, 0);
+
+    size_t bytes_read_to_current_sequence = 0;
+    while (bytes_read_to_current_sequence < start_sequence_byte_length)
+    {
+        size_t bytes_read;
+        if (!port->read_bytes(&current_sequence[bytes_read_to_current_sequence], current_sequence.size(), bytes_read))
+        {
+            return false;
+        }
+
+        bytes_read_to_current_sequence += bytes_read;
+    }
+
+    assert(current_sequence.size() == start_sequence_byte_length);
+    while (memcmp(&current_sequence[0], expected_simulation_start_sequence, start_sequence_byte_length) != 0)
+    {
+        uint8_t byte;
+        size_t bytes_read;
+        if (!port->read_bytes(&byte, sizeof(byte), bytes_read) || bytes_read != sizeof(byte))
+        {
+            return false;
+        }
+
+        current_sequence.erase(current_sequence.begin());
+        current_sequence.push_back(byte);
+        assert(current_sequence.size() == start_sequence_byte_length);
+    }
+
+    return true;
+}
+
+
 static bool is_com_port_name(const std::string &name)
 {
     if (name.length() < string("COMX").length())
@@ -52,6 +89,12 @@ int find_center_value(shared_ptr<iSerialPort> port)
 
     bool report_end = false;
     bool read_first_samples = false;
+
+    if (!wait_for_start_sequence(port, expected_simulation_start_sequence, sizeof(expected_simulation_start_sequence)))
+    {
+        printf("Error waiting for start sequence.\n");
+        return -1;
+    }
 
     while (true)
     {
@@ -93,7 +136,7 @@ int find_center_value(shared_ptr<iSerialPort> port)
 int record_from_serial_to_wav_file(shared_ptr<iSerialPort> port, const std::string & wav_file_name, uint16_t adc_center_value)
 {
     const uint16_t adx_max = 4095;
-    const size_t number_of_samples_per_transaction = 2000;
+    const size_t number_of_samples_per_transaction = 1999;
     const size_t samples_per_second = 8000; // 8 kHz
 
     DataConverter converter(adc_center_value, adx_max);
@@ -112,6 +155,12 @@ int record_from_serial_to_wav_file(shared_ptr<iSerialPort> port, const std::stri
 
     bool report_end = false;
     bool read_first_samples = false;
+
+    if (!wait_for_start_sequence(port, expected_simulation_start_sequence, sizeof(expected_simulation_start_sequence)))
+    {
+        printf("Error waiting for start sequence.\n");
+        return -1;
+    }
 
     while (true)
     {

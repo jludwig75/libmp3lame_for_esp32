@@ -77,10 +77,13 @@ void init_timer(int timer_period_us)
     timer_start(TIMER_GROUP_0, TIMER_0);
 }
 
+
+uint8_t start_sequence[] = { 0x55, 0xAA, 'S', 'T', 'A', 'R', 'T', 0x55, 0xAA };
+
 void lameTest()
 {
      uart_config_t uart_config = {
-            .baud_rate = 921600,
+            .baud_rate = 256000,
             .data_bits = UART_DATA_8_BITS,
             .parity    = UART_PARITY_DISABLE,
             .stop_bits = UART_STOP_BITS_1,
@@ -95,6 +98,13 @@ void lameTest()
     adc1_config_channel_atten(ADC1_CHANNEL_6, ADC_ATTEN_11db);
 
     printf("ADC configured. Starting timer...\n");
+
+    printf("Start recording client on UART 2. Press enter when ready...\n");
+    char read_buffer[128];
+    gets(read_buffer);
+
+    // Send the start sequence to the client on UART2
+    uart_write_bytes(UART_NUM_2, (const char *)start_sequence, sizeof(start_sequence));
 
      // Everything is ready. Start the data sampler timer.
     init_timer(125);
